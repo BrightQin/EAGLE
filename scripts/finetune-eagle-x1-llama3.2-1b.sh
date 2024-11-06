@@ -6,8 +6,8 @@ export WANDB_PROJECT="eagle"
 export WANDB_RUN_ID=${NAME}
 export WANDB_RESUME="allow"
 
-CUDA_VISIBLE_DEVICES='6' python -m torch.distributed.run \
-    --nproc_per_node 1 --master_port 25031 \
+CUDA_VISIBLE_DEVICES='4,5,7' python -m torch.distributed.run \
+    --nproc_per_node 3 --master_port 25031 \
     train_mem.py \
     --model_name_or_path ./model/LLM/Llama-3.2-1B-Instruct \
     --version llama3 \
@@ -24,13 +24,13 @@ CUDA_VISIBLE_DEVICES='6' python -m torch.distributed.run \
     --bf16 False \
     --fp16 True \
     --output_dir ./checkpoints/$NAME \
-    --num_train_epochs 2 \
+    --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 10000 \
+    --save_steps 2 \
     --save_total_limit 1 \
     --learning_rate 2e-5 \
     --weight_decay 0. \

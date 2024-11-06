@@ -95,6 +95,26 @@ def build_audio_projector(config, **kwargs):
     # FUTURE: Add MoE projection here
 # END
 
+# BEGIN qbs
+def build_video_projector(config, **kwargs):
+    projector_type = getattr(config, 'mm_video_projector_type', 'linear')
+    if projector_type == 'linear':
+        return nn.Linear(config.mm_video_hidden_size, config.hidden_size)
+    
+    mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', projector_type)
+    if mlp_gelu_match:
+        mlp_depth = int(mlp_gelu_match.group(1))
+        return build_mlp(
+            mlp_depth=mlp_depth,
+            input_dim=config.mm_video_hidden_size,
+            output_dim=config.hidden_size
+        )
+    
+    if projector_type == 'identity':
+        return IdentityMap()
+    # FUTURE: Add MoE projection here
+# END
+
 # Copied from CuMo
 class MLPMoE(nn.Module):
     def __init__(

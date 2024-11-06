@@ -53,7 +53,7 @@ from eagle.train.eagle_trainer import EagleTrainer
 from eagle import conversation as conversation_lib
 from eagle.model import *
 from eagle.mm_utils import tokenizer_image_token
-from eagle.datasets.audio_dataset import make_audio_data_module
+from eagle.datasets.old.audio_dataset import make_audio_data_module
 
 from PIL import Image
 

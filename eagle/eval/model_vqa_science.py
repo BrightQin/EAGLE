@@ -95,12 +95,12 @@ def eval_model(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
+    parser.add_argument("--model-path", type=str, default="/home4/hxl/MLLM/EAGLE/checkpoints/finetune-eagle-x1-llama3.2-1b/checkpoint-2")
     parser.add_argument("--model-base", type=str, default=None)
-    parser.add_argument("--image-folder", type=str, default="")
-    parser.add_argument("--question-file", type=str, default="tables/question.json")
-    parser.add_argument("--answers-file", type=str, default="answer.jsonl")
-    parser.add_argument("--conv-mode", type=str, default="llava_v1")
+    parser.add_argument("--image-folder", type=str, default="/home4/hxl/MLLM/EAGLE/dataset/Image_Eval/scienceqa/images")
+    parser.add_argument("--question-file", type=str, default="/home4/hxl/MLLM/EAGLE/dataset/Image_Eval/scienceqa/llava_test_CQM-A.json")
+    parser.add_argument("--answers-file", type=str, default="/home4/hxl/MLLM/EAGLE/dataset/Image_Eval/scienceqa/answers/EAGLE_SQA.jsonl")
+    parser.add_argument("--conv-mode", type=str, default="llama3")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=0.2)

@@ -251,35 +251,35 @@ class EagleTrainer(Trainer):
                 # START qbs
                 vision_tower_parameters = [name for name, _ in opt_model.named_parameters() if "vision_tower" in name]
                 projector_parameters = [name for name, _ in opt_model.named_parameters() if "mm_projector" in name]
-                optimizer_grouped_parameters = [
-                    {
-                        "params": [
-                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
-                        ],
-                        "weight_decay": self.args.weight_decay,
-                    },
-                    {
-                        "params": [
-                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
-                        ],
-                        "weight_decay": 0.0,
-                    },
-                ]
-
                 # optimizer_grouped_parameters = [
                 #     {
                 #         "params": [
-                #             p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in vision_tower_parameters and p.requires_grad)
+                #             p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
                 #         ],
                 #         "weight_decay": self.args.weight_decay,
                 #     },
                 #     {
                 #         "params": [
-                #             p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in vision_tower_parameters and p.requires_grad)
+                #             p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
                 #         ],
                 #         "weight_decay": 0.0,
                 #     },
                 # ]
+
+                optimizer_grouped_parameters = [
+                    {
+                        "params": [
+                            p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                ]
             # END qbs
 
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)

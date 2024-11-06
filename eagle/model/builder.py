@@ -164,3 +164,63 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         context_len = 2048
 
     return tokenizer, model, image_processor, context_len
+
+# BEGIN hxl
+def load_audio_pretrained_model(
+    model_path, 
+    model_base, 
+    model_name, 
+    load_8bit=False, 
+    load_4bit=False, 
+    device_map="auto", 
+    device="cuda", 
+    use_flash_attn=False, 
+    **kwargs 
+):
+    kwargs = {
+        "device_map": device_map,
+        **kwargs
+    }
+    if device != "cuda":
+        kwargs['device_map'] = {"": device}
+
+    # Keep unchange, maybe useless
+    if load_8bit:
+        kwargs['load_in_8bit'] = True
+    elif load_4bit:
+        kwargs['load_in_4bit'] = True
+        kwargs['quantization_config'] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type='nf4'
+        )
+    else:
+        kwargs['torch_dtype'] = torch.float16
+
+    if use_flash_attn:
+        kwargs['attn_implementation'] = 'flash_attention_2'
+
+    # Always load the same model struct temporarilly
+    model = EagleLlamaForCausalLM.from_pretrained(
+        model_path,
+        low_cpu_mem_usage=True,
+        **kwargs
+    )
+    audio_tower = getattr(model, 'mm_audio_tower', False)
+    if audio_tower:
+        if 'LanguageBind_Audio_FT' in audio_tower:
+            from eagle.model.multimodal_encoder.audio_models.processing_audio import LanguageBindAudioProcessor
+            from eagle.model.multimodal_encoder.audio_models.tokenization_audio import LanguageBindAudioTokenizer
+            from eagle.model.multimodal_encoder.audio_models.configuration_audio import LanguageBindAudioConfig
+            tokenizer = LanguageBindAudioTokenizer.from_pretrained(audio_tower)
+            config = LanguageBindAudioConfig.from_pretrained(audio_tower)
+            audio_processor = LanguageBindAudioProcessor(config, tokenizer)
+    if hasattr(model.config, "max_sequence_length"):
+        context_len = model.config.max_sequence_length
+    else:
+        context_len = 512
+
+    return tokenizer, model, audio_processor, context_len
+
+# END hxl

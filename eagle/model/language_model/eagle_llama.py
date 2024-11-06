@@ -116,9 +116,26 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
                     past_key_values,
                     labels,
                     images,
-                    image_sizes
+                    self.modal,
+                    image_sizes,
                 )
             # BEGIN
+            # elif self.modal == 'audio':
+            #     (
+            #         input_ids,
+            #         position_ids,
+            #         attention_mask,
+            #         past_key_values,
+            #         inputs_embeds,
+            #         labels,
+            #     ) = self.prepare_inputs_labels_audio(
+            #         input_ids=input_ids,
+            #         position_ids=position_ids,
+            #         attention_mask=attention_mask,
+            #         past_key_values=past_key_values,
+            #         labels=labels,
+            #         audios=pixel_values
+            #     )
             elif self.modal == 'audio':
                 (
                     input_ids,
@@ -127,14 +144,56 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
                     past_key_values,
                     inputs_embeds,
                     labels,
-                ) = self.prepare_inputs_labels_audio(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
-                    attention_mask=attention_mask,
-                    past_key_values=past_key_values,
-                    labels=labels,
-                    audios=pixel_values
+                    mlp_balance_loss,
+                    mlp_router_z_loss
+                ) = self.prepare_inputs_labels_for_multimodal(
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    labels,
+                    images,
+                    self.modal,
+                    image_sizes,
                 )
+            # BEGIN qbs
+            # elif self.modal == 'video':
+            #     (
+            #         input_ids,
+            #         position_ids,
+            #         attention_mask,
+            #         past_key_values,
+            #         inputs_embeds,
+            #         labels,
+            #     ) = self.prepare_inputs_labels_video(
+            #         input_ids=input_ids,
+            #         position_ids=position_ids,
+            #         attention_mask=attention_mask,
+            #         past_key_values=past_key_values,
+            #         labels=labels,
+            #         videos=pixel_values
+            #     )
+            elif self.modal == 'video':
+                (
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    inputs_embeds,
+                    labels,
+                    mlp_balance_loss,
+                    mlp_router_z_loss
+                ) = self.prepare_inputs_labels_for_multimodal(
+                    input_ids,
+                    position_ids,
+                    attention_mask,
+                    past_key_values,
+                    labels,
+                    images,
+                    self.modal,
+                    image_sizes,
+                )
+            # END qbs
 
         out = super().forward(
             input_ids=input_ids,
@@ -223,6 +282,47 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
         if image_sizes is not None:
             inputs['image_sizes'] = image_sizes
         return inputs
+    
+    # BEGIN hxl
+
+    @torch.no_grad()
+    def audio_generate(
+        self,
+        inputs: Optional[torch.Tensor] = None,
+        audios: Optional[torch.Tensor] = None,
+        **kwargs
+    ) -> Union[GenerateOutput, torch.LongTensor]:
+        position_ids = kwargs.pop("position_ids", None)
+        attention_mask = kwargs.pop("attention_mask", None)
+        if "inputs_embeds" in kwargs:
+            raise NotImplementedError("`inputs_embeds` is not supported")
+        if audios is not None:
+            (
+                input_ids,
+                position_ids,
+                attention_mask,
+                _,
+                inputs_embeds,
+                _,
+            ) = self.prepare_inputs_labels_audio(
+                input_ids=input_ids,
+                position_ids=position_ids,
+                attention_mask=attention_mask,
+                past_key_values=None,
+                labels=None,
+                audios=audios
+            )
+        else:
+            inputs_embeds = self.get_model().embed_tokens(inputs)
+
+        return super().generate(
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            inputs_embeds=inputs_embeds,
+            **kwargs
+        )
+        
+    # END hxl
 
 AutoConfig.register("eagle_llama", EagleConfig)
 AutoModelForCausalLM.register(EagleConfig, EagleLlamaForCausalLM)

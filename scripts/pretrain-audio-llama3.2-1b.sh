@@ -1,8 +1,8 @@
 #!/bin/bash
-NAME=audio_try
+NAME=audio_try1
 export WANDB_DISABLED="true"
 
-CUDA_VISIBLE_DEVICES='6,7' python -m torch.distributed.run \
+CUDA_VISIBLE_DEVICES='6,5' python -m torch.distributed.run \
     --nproc_per_node 2 --master_port 25031 \
     train_audio.py \
     --model_name_or_path ./model/LLM/Llama-3.2-1B-Instruct \
