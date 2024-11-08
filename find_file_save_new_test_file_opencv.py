@@ -6,9 +6,9 @@ from tqdm import tqdm
 from multiprocessing import Pool
 
 # 定义文件路径
-json_file_path = 'dataset/Video/train/videochatgpt_tune/videochatgpt_llavaimage_tune.json'
-output_txt_path = 'missing_images.txt'
-output_json_path = 'dataset/Video/train/videochatgpt_tune/videochatgpt_llavaimage_tune_filtered.json'
+json_file_path = './videochatgpt_tune/videochatgpt_llavaimage_tune.json'
+output_txt_path = 'missing_videos_opencv.txt'
+output_json_path = './videochatgpt_tune/videochatgpt_llavaimage_tune_filtered_opencv.json'
 
 # 读取JSON文件
 with open(json_file_path, 'r') as file:
@@ -17,7 +17,7 @@ with open(json_file_path, 'r') as file:
 def process_item(item):
     try:
         video_path = item['video']
-        video_path = os.path.join('./dataset/Video/train/videochatgpt_tune', video_path)
+        video_path = os.path.join('./videochatgpt_tune', video_path)
         if video_path and not os.path.exists(video_path):
             return (video_path, None)
         else:
