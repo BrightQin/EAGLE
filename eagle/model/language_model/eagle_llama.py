@@ -190,6 +190,7 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
                     past_key_values,
                     labels,
                     images,
+                    # pixel_values,
                     self.modal,
                     image_sizes,
                 )
@@ -236,6 +237,7 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
         inputs: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
+        modality: Optional[str] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)
@@ -250,7 +252,9 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
                 attention_mask,
                 _,
                 inputs_embeds,
-                _
+                _,
+                _,
+                _ # Because of the adding of moe
             ) = self.prepare_inputs_labels_for_multimodal(
                 inputs,
                 position_ids,
@@ -258,10 +262,13 @@ class EagleLlamaForCausalLM(LlamaForCausalLM, EagleMetaForCausalLM):
                 None,
                 None,
                 images,
+                modality=modality,
                 image_sizes=image_sizes
             )
+            # print("Image not none")
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
+            # print("Image none")
 
         return super().generate(
             position_ids=position_ids,

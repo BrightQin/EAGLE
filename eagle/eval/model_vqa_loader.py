@@ -117,7 +117,8 @@ def eval_model(args):
                 max_new_tokens=args.max_new_tokens,
                 use_cache=True)
 
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+        print(output_ids[0][0])
+        outputs = tokenizer.batch_decode(output_ids[0], skip_special_tokens=True)[0].strip()
 
         ans_id = shortuuid.uuid()
         ans_file.write(json.dumps({"question_id": idx,

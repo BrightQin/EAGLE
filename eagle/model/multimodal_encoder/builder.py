@@ -15,7 +15,9 @@
 # This file is modified from https://github.com/haotian-liu/LLaVA/
 
 import os
-from .clip_encoder import CLIPVisionTower, LanguageBindVideoTower, LanguageBindAudioTower
+from .clip_encoder import CLIPVisionTower, LanguageBindAudioTower, LanguageBindVideoTower
+# from .languagebind_audio_encoder import LanguageBindAudioTower
+# from .languagebind_video_encoder import LanguageBindVideoTower
 from .multi_backbone_channel_concatenation_encoder import MultiBackboneChannelConcatenationVisionTower
 
 def build_vision_tower(vision_tower_cfg, **kwargs):

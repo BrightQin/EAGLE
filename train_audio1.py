@@ -405,12 +405,12 @@ def train(attn_implementation=None):
         if 'align_stages' in name:
             param.requires_grad = True
             
-    # if model_args.version == "llama3":
-    #     for name, param in model.named_parameters():
-    #         param.requires_grad = False
+    if model_args.version == "llama3":
+        for name, param in model.named_parameters():
+            param.requires_grad = False
         
-    #     for p in model.get_model().mm_projector.parameters():
-    #         p.requires_grad = True
+        for p in model.get_model().mm_projector.parameters():
+            p.requires_grad = True
         
     #     for name, param in model.named_parameters():
     #         if 'attention.q' in name and 'weight' in name:

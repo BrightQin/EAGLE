@@ -54,6 +54,18 @@ class EagleMetaModel:
         super(EagleMetaModel, self).__init__(config)
 
         if hasattr(config, "mm_vision_tower"):
+            # BEGIN hxl
+            # process for load pretrain
+            if 'video' in  config.mm_vision_tower.lower():
+                self.vision_tower = build_video_tower(config)
+                if not hasattr(config, 'mm_video_hidden_size'):
+                    config.mm_video_hidden_size = config.mm_hidden_size
+                self.mm_video_projector = build_video_projector(config)
+                self.mm_projector = self.mm_video_projector
+                return
+
+            # END hxl
+
             self.vision_tower = build_vision_tower(config, delay_load=True)
             fpn_input_dim = [] if not hasattr(self.vision_tower, "fpn_input_dim") else self.vision_tower.fpn_input_dim
             self.mm_projector = build_vision_projector(config, fpn_input_dim=fpn_input_dim)

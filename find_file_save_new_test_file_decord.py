@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool
+import decord
+from decord import VideoReader, cpu
 
 # 定义文件路径
 json_file_path = 'dataset/Video/train/videochatgpt_tune/videochatgpt_llavaimage_tune.json'
@@ -23,18 +25,11 @@ def process_item(item):
         else:
             # 尝试读取视频
             try:
-                cv2_vr = cv2.VideoCapture(video_path)
-                duration = int(cv2_vr.get(cv2.CAP_PROP_FRAME_COUNT))
-                frame_id_list = np.linspace(0, duration - 1, 10, dtype=int)  # 假设num_frames为10
-
-                for frame_idx in frame_id_list:
-                    cv2_vr.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                    ret, frame = cv2_vr.read()
-                    if not ret:
-                        cv2_vr.release()
-                        return (video_path, None)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                cv2_vr.release()
+                decord.bridge.set_bridge('torch')
+                decord_vr = VideoReader(video_path, ctx=cpu(0))
+                duration = len(decord_vr)
+                frame_id_list = np.linspace(0, duration-1, 10, dtype=int)
+                video_data = decord_vr.get_batch(frame_id_list)
                 return (None, item)  # 有效项目
             except:
                 return (video_path, None)

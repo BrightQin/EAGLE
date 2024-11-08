@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn import functional as F
 from transformers import PreTrainedModel, add_start_docstrings
 from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
-from transformers.models.clip.modeling_clip import CLIPMLP, CLIPAttention, CLIPTextEmbeddings, CLIPVisionEmbeddings, \
+from transformers.models.clip.modeling_clip import CLIPMLP, CLIPAttention, CLIPTextEmbeddings, \
     CLIPVisionModelWithProjection, CLIPTextModelWithProjection, CLIPOutput, clip_loss
 from transformers.utils import add_start_docstrings_to_model_forward, replace_return_docstrings
 
@@ -605,6 +605,41 @@ class CLIPTextModel(CLIPPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+    
+
+class CLIPVisionEmbeddings(nn.Module):
+    def __init__(self, config: CLIPVisionConfig):
+        super().__init__()
+        self.config = config
+        self.embed_dim = config.hidden_size
+        self.image_size = config.image_size
+        self.patch_size = config.patch_size
+
+        self.class_embedding = nn.Parameter(torch.randn(self.embed_dim))
+
+        self.patch_embedding = nn.Conv2d(
+            in_channels=config.num_channels,
+            out_channels=self.embed_dim,
+            kernel_size=self.patch_size,
+            stride=self.patch_size,
+            bias=False,
+        )
+
+        self.num_patches = (self.image_size // self.patch_size) ** 2
+        self.num_positions = self.num_patches + 1
+        self.position_embedding = nn.Embedding(self.num_positions, self.embed_dim)
+        self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)), persistent=False)
+
+    def forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
+        batch_size = pixel_values.shape[0]
+        target_dtype = self.patch_embedding.weight.dtype
+        patch_embeds = self.patch_embedding(pixel_values.to(dtype=target_dtype))  # shape = [*, width, grid, grid]
+        patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
+
+        class_embeds = self.class_embedding.expand(batch_size, 1, -1)
+        embeddings = torch.cat([class_embeds, patch_embeds], dim=1)
+        embeddings = embeddings + self.position_embedding(self.position_ids)
+        return embeddings
 
 
 class CLIPVisionTransformer(nn.Module):
@@ -696,9 +731,88 @@ class CLIPVisionModel(CLIPPreTrainedModel):
 
     def __init__(self, config: CLIPVisionConfig):
         super().__init__(config)
+        vision_config = config
+        self.add_time_attn = vision_config.add_time_attn
+        self.lora_r = vision_config.lora_r
+        self.lora_alpha = vision_config.lora_alpha
+        self.lora_dropout = vision_config.lora_dropout
+
+        self.projection_dim = config.projection_dim
+        self.vision_embed_dim = vision_config.hidden_size
+
         self.vision_model = CLIPVisionTransformer(config)
         # Initialize weights and apply final processing
         self.post_init()
+        self.convert_to_lora()
+        self.resize_pos(self.vision_model.embeddings, vision_config)
+
+    def convert_to_lora(self):
+        if self.lora_r == 0:
+            return
+        if self.add_time_attn:
+            target_modules = ["temporal_attn.k_proj", "temporal_attn.v_proj",
+                              "temporal_attn.q_proj", "temporal_attn.out_proj",
+                              "temporal_mlp.fc1", "temporal_mlp.fc2"]
+        else:
+            target_modules = ["k_proj", "v_proj", "q_proj", "out_proj"]
+        config = LoraConfig(
+            r=self.lora_r,  # 16
+            lora_alpha=self.lora_alpha,  # 16
+            target_modules=target_modules,  # self_attn.out_proj
+            lora_dropout=self.lora_dropout,  # 0.1
+            bias="none",
+            modules_to_save=[],
+        )
+        self.vision_model.encoder.is_gradient_checkpointing = False
+        self.vision_model.encoder = get_peft_model(self.vision_model.encoder, config)
+
+    def resize_pos(self, m, vision_config):
+        # convert embedding
+        if vision_config.num_mel_bins!=0 and vision_config.target_length!=0:
+            m.image_size = [vision_config.num_mel_bins, vision_config.target_length]
+        m.config.image_size = [m.image_size, m.image_size] if isinstance(m.image_size, int) else m.image_size
+        # pos resize
+        old_pos_embed_state_dict = m.position_embedding.state_dict()
+        old_pos_embed = old_pos_embed_state_dict['weight']
+        dtype = old_pos_embed.dtype
+        grid_size = [m.config.image_size[0] // m.patch_size, m.config.image_size[1] // m.patch_size]
+        extra_tokens = 1  # FIXME detect different token configs (ie no class token, or more)
+        new_seq_len = grid_size[0] * grid_size[1] + extra_tokens
+        if new_seq_len == old_pos_embed.shape[0]:
+            # m.to(args.device)
+            return
+
+        m.num_patches = grid_size[0] * grid_size[1]
+        m.num_positions = m.num_patches + 1
+        m.register_buffer("position_ids", torch.arange(m.num_positions).expand((1, -1)))
+        new_position_embedding = nn.Embedding(m.num_positions, m.embed_dim)
+
+        if extra_tokens:
+            pos_emb_tok, pos_emb_img = old_pos_embed[:extra_tokens], old_pos_embed[extra_tokens:]
+        else:
+            pos_emb_tok, pos_emb_img = None, old_pos_embed
+        old_grid_size = [int(math.sqrt(len(pos_emb_img)))] * 2
+
+        # if is_master(args):
+        #     logging.info('Resizing position embedding grid-size from %s to %s', old_grid_size, grid_size)
+        pos_emb_img = pos_emb_img.reshape(1, old_grid_size[0], old_grid_size[1], -1).permute(0, 3, 1, 2)
+        pos_emb_img = F.interpolate(
+            pos_emb_img,
+            size=grid_size,
+            mode='bicubic',
+            antialias=True,
+            align_corners=False,
+        )
+        pos_emb_img = pos_emb_img.permute(0, 2, 3, 1).reshape(1, grid_size[0] * grid_size[1], -1)[0]
+        if pos_emb_tok is not None:
+            new_pos_embed = torch.cat([pos_emb_tok, pos_emb_img], dim=0)
+        else:
+            new_pos_embed = pos_emb_img
+        old_pos_embed_state_dict['weight'] = new_pos_embed.to(dtype)
+        m.position_embedding = new_position_embedding
+        m.position_embedding.load_state_dict(old_pos_embed_state_dict)
+
+        # m.to(args.device)
 
     def get_input_embeddings(self) -> nn.Module:
         return self.vision_model.embeddings.patch_embedding
